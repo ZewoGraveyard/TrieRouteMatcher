@@ -114,8 +114,22 @@ public struct TrieRouteMatcher: RouteMatcherType {
             }
 
 
+
+            // need to sort these in descending order, otherwise
+            // children with negative prefixes (parameters) can take
+            // priority over static paths (which they shouldnt)
+            head.children.sortInPlace { n1, n2 in
+                n1.prefix > n2.prefix
+            }
+
             // component exists in the routes
             for child in head.children {
+
+                // normal, static route
+                if child.prefix == id {
+                    head = child
+                    continue componentLoop
+                }
 
                 // still could be a parameter
                 // ex: route.get("/api/:version")
@@ -124,12 +138,6 @@ public struct TrieRouteMatcher: RouteMatcherType {
                     head = child
                     if parameters == nil { parameters = [String:String]() }
                     parameters![getParameterFromId(child.prefix!)!] = component
-                    continue componentLoop
-                }
-
-                // normal, static route
-                if child.prefix == id {
-                    head = child
                     continue componentLoop
                 }
             }
