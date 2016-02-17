@@ -74,46 +74,42 @@ public struct TrieRouteMatcher: RouteMatcherType {
         return parameter
     }
 
-    public func match(request: Request) -> Route? {
-        guard let path = request.path else {
-            return nil
-        }
-
-        let components = path.split("/")
+    func searchForRoute(head head: Trie<Int, Route>, components: [String], componentIndex startingIndex: Int, inout parameters: [String:String]) -> Route? {
 
         // topmost route node. children are searched for route matches,
         // if they match, that matching node gets set to head
-        var head = routesTrie
+        var head = head
 
-        // pseudo-lazy initiation
-        var parameters: [String:String]? = nil
+        // if at any point the trie comes up with multiple options for descent, it is to
+        // store the alternatives and the index of the component at which it found the alternative
+        // node so that it can backtrack and search through that alternative node if the original
+        // node ends up 404'ing
+        var alternatives: [(Int, Trie<Int, Route>)] = []
 
-        componentLoop: for component in components {
+        // go through the components starting at the start index. the start index can change
+        // to be more than 0 if the trie ran into a dead-end and goes backwards (recursively) through its alternatives
+        componentLoop: for (componentIndex, component) in components[startingIndex..<components.count].enumerate() {
 
             // search for component in the components dictionary
             let id = componentsTrie.findPayload(component.characters)
 
-
-            // either parameter or 404
+            // not found in the dictionary - either parameter or 404
             if id == nil {
 
                 for child in head.children {
 
                     // if the id of the route component is negative,
-                    // its a parameter
+                    // it is a parameter route
                     if child.prefix < 0 {
                         head = child
-                        if parameters == nil { parameters = [String:String]() }
-                        parameters![getParameterFromId(child.prefix!)!] = component
+                        parameters[getParameterFromId(child.prefix!)!] = component
                         continue componentLoop
                     }
                 }
 
-                // no routes matched
+                // no routes matches
                 return nil
             }
-
-
 
             // need to sort these in descending order, otherwise
             // children with negative prefixes (parameters) can take
@@ -122,43 +118,85 @@ public struct TrieRouteMatcher: RouteMatcherType {
                 n1.prefix > n2.prefix
             }
 
+            // gets set to the first node to match. however, since we want to fill up alternatives,
+            // we wait until we loop through all the children before descending further down the
+            // trie through the preferredHead node
+            var preferredHead: Trie<Int, Route>? = nil
+
             // component exists in the routes
             for child in head.children {
 
                 // normal, static route
                 if child.prefix == id {
-                    head = child
-                    continue componentLoop
+                    if preferredHead == nil { preferredHead = child }
+                    else { alternatives.append((componentIndex + 1, child)) }
+                    continue
                 }
 
                 // still could be a parameter
                 // ex: route.get("/api/:version")
                 // request: /api/api
                 if child.prefix < 0 {
-                    head = child
-                    if parameters == nil { parameters = [String:String]() }
-                    parameters![getParameterFromId(child.prefix!)!] = component
-                    continue componentLoop
+                    if preferredHead == nil {
+                        preferredHead = child
+                        parameters[getParameterFromId(child.prefix!)!] = component
+                    } else {
+                        alternatives.append((componentIndex + 1, child))
+                    }
                 }
             }
 
-            // no routes matched
+            // route was matched
+            if let preferredHead = preferredHead {
+                head = preferredHead
+                continue
+            }
+
+            // the path we just took led to a 404. go through all alternative
+            // paths (could be an empty array) and try those as well
+            for alternative in alternatives {
+
+                let matched = searchForRoute(head: alternative.1, components: components, componentIndex: alternative.0, parameters: &parameters)
+
+                if matched != nil { return matched }
+            }
+
+            // 404 even after going through alternatives. no routes matched
             return nil
         }
 
-        // get the actual route
-        guard let route = head.payload else { return nil }
+        // success! found a route.
+        return head.payload
+    }
+
+    public func match(request: Request) -> Route? {
+        guard let path = request.path else {
+            return nil
+        }
+
+        let components = path.split("/")
+
+        var parameters = [String:String]()
+
+        // start searching for the route from the head of the routesTrie
+        let matched = searchForRoute(head: routesTrie, components: components, componentIndex: 0, parameters: &parameters)
+
+        // ensure the route was found
+        guard let route = matched else { return nil }
 
         // no parameters? no problem
-        guard let pathParameters = parameters else { return route }
+        if parameters.isEmpty {
+            return route
+        }
 
+        // wrap the route to inject the pathParameters upon receiving a request
         let wrappedRoute = Route(
             methods: route.methods,
             path: route.path,
             middleware: route.middleware,
             responder: Responder { req in
                 var req = req
-                for (key, parameter) in pathParameters {
+                for (key, parameter) in parameters {
                     req.pathParameters[key] = parameter
                 }
                 return try route.respond(req)
