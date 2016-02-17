@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-struct Trie<Element: Comparable, Payload> {
+public struct Trie<Element: Comparable, Payload> {
     let prefix: Element?
     var payload: Payload?
     var ending: Bool
@@ -43,11 +43,11 @@ struct Trie<Element: Comparable, Payload> {
     }
 }
 
-func ==<Element, Payload where Element: Comparable>(lhs: Trie<Element, Payload>, rhs: Trie<Element, Payload>) -> Bool {
+public func ==<Element, Payload where Element: Comparable>(lhs: Trie<Element, Payload>, rhs: Trie<Element, Payload>) -> Bool {
     return lhs.prefix == rhs.prefix
 }
 
-func <<Element, Payload where Element: Comparable>(lhs: Trie<Element, Payload>, rhs: Trie<Element, Payload>) -> Bool {
+public func <<Element, Payload where Element: Comparable>(lhs: Trie<Element, Payload>, rhs: Trie<Element, Payload>) -> Bool {
     return lhs.prefix < rhs.prefix
 }
 
