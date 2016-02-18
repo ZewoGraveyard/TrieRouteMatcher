@@ -78,4 +78,24 @@ class TrieRouteMatcherTests: XCTestCase {
         XCTAssert(try router.respond(request1).status != .NotFound)
         XCTAssert(try router.respond(request2).status != .NotFound)
     }
+    
+    func testTrieRouteMatcherMatchesMethodsProperly() {
+        let router = Router(matcher: TrieRouteMatcher.self) { route in
+            route.get("/hello/world") {_ in return Response(body: "get request") }
+            route.post("/hello/world") {_ in return Response(body: "post request") }
+            route.post("/hello/world123") {_ in return Response(body: "post request 2") }
+        }
+
+        let getRequest1 = try! Request(method: .GET, uri: "/hello/world")
+        let postRequest1 = try! Request(method: .POST, uri: "/hello/world")
+
+        let getRequest2 = try! Request(method: .GET, uri: "/hello/world123")
+        let postRequest2 = try! Request(method: .POST, uri: "/hello/world123")
+
+        XCTAssert(try router.respond(getRequest1).bodyString == "get request")
+        XCTAssert(try router.respond(postRequest1).bodyString == "post request")
+
+        XCTAssert(try router.respond(getRequest2).status == .NotFound)
+        XCTAssert(try router.respond(postRequest2).status != .NotFound)
+    }
 }
