@@ -6,7 +6,6 @@
 //
 //
 
-import Router
 @testable import TrieRouteMatcher
 import XCTest
 
@@ -34,24 +33,42 @@ class TrieRouteMatcherTests: XCTestCase {
     }
 
     func testTrieRouteMatcherWithRouter() {
+        testMatcherMatchesRoutes(TrieRouteMatcher.self)
+    }
 
-        let router = Router(matcher: TrieRouteMatcher.self) { route in
-            route.get("/hello/world") {_ in print("1"); return Response(status: .OK)}
-            route.get("/hello/dan") {_ in print("2"); return Response(status: .OK)}
-            route.get("/api/:version") {_ in print("3"); return Response(status: .OK)}
-            route.get("/servers/json") {_ in print("4"); return Response(status: .OK)}
-            route.get("/servers/:host/logs") {_ in print("5"); return Response(status: .OK)}
+    func testTrieRouteMatcherWithTrailingSlashes() {
+        testMatcherWithTrailingSlashes(TrieRouteMatcher.self)
+    }
+
+    func testTrieRouteMatcherMatchesMethods() {
+        testMatcherMatchesMethods(TrieRouteMatcher.self)
+    }
+
+    func testTrieRouteMatcherParsesPathParameters() {
+        testMatcherParsesPathParameters(TrieRouteMatcher.self)
+    }
+
+
+    func testMatcherMatchesRoutes(matcher: RouteMatcherType.Type) {
+
+        let responder = Responder { request in
+            return Response(status: .OK)
         }
 
-        func route(path: String, shouldMatch: Bool) -> Bool {
-            let req = try! Request(method: .GET, uri: path)
+        let routes = [
+            Route(methods: [.GET], path: "/hello/world", middleware: [], responder: responder),
+            Route(methods: [.GET], path: "/hello/dan", middleware: [], responder: responder),
+            Route(methods: [.GET], path: "/api/:version", middleware: [], responder: responder),
+            Route(methods: [.GET], path: "/servers/json", middleware: [], responder: responder),
+            Route(methods: [.GET], path: "/servers/:host/logs", middleware: [], responder: responder)
+        ]
 
-            let status = try! router.respond(req).status
-            if shouldMatch {
-                return status != .NotFound
-            } else {
-                return status == .NotFound
-            }
+        let matcher = matcher.init(routes: routes)
+
+        func route(path: String, shouldMatch: Bool) -> Bool {
+            let request = try! Request(method: .GET, uri: path)
+            let matched = matcher.match(request)
+            if shouldMatch { return matched != nil } else { return matched == nil }
         }
 
         XCTAssert(route("/hello/world", shouldMatch: true))
@@ -67,24 +84,33 @@ class TrieRouteMatcherTests: XCTestCase {
         XCTAssert(route("/servers/json/logs", shouldMatch: true))
     }
 
-    func testTrieRouteMatcherWithTrailingSlashes() {
-        let router = Router(matcher: TrieRouteMatcher.self) { route in
-            route.get("/hello/world") {_ in print("hello!"); return Response(status: .OK) }
+    func testMatcherWithTrailingSlashes(matcher: RouteMatcherType.Type) {
+        let responder = Responder { request in
+            return Response(status: .OK)
         }
+
+        let routes = [
+            Route(methods: [.GET], path: "/hello/world", middleware: [], responder: responder)
+        ]
+
+        let matcher = matcher.init(routes: routes)
 
         let request1 = try! Request(method: .GET, uri: "/hello/world")
         let request2 = try! Request(method: .GET, uri: "/hello/world/")
 
-        XCTAssert(try router.respond(request1).status != .NotFound)
-        XCTAssert(try router.respond(request2).status != .NotFound)
+        XCTAssert(matcher.match(request1) != nil)
+        XCTAssert(matcher.match(request2) != nil)
     }
-    
-    func testTrieRouteMatcherMatchesMethodsProperly() {
-        let router = Router(matcher: TrieRouteMatcher.self) { route in
-            route.get("/hello/world") {_ in return Response(body: "get request") }
-            route.post("/hello/world") {_ in return Response(body: "post request") }
-            route.post("/hello/world123") {_ in return Response(body: "post request 2") }
-        }
+
+    func testMatcherMatchesMethods(matcher: RouteMatcherType.Type) {
+
+        let routes = [
+            Route(methods: [.GET], path: "/hello/world", middleware: [], responder: Responder { _ in return Response(body: "get request") }),
+            Route(methods: [.POST], path: "/hello/world", middleware: [], responder: Responder { _ in return Response(body: "post request") }),
+            Route(methods: [.POST], path: "/hello/world123", middleware: [], responder: Responder { _ in return Response(body: "post request 2") })
+        ]
+
+        let matcher = matcher.init(routes: routes)
 
         let getRequest1 = try! Request(method: .GET, uri: "/hello/world")
         let postRequest1 = try! Request(method: .POST, uri: "/hello/world")
@@ -92,19 +118,26 @@ class TrieRouteMatcherTests: XCTestCase {
         let getRequest2 = try! Request(method: .GET, uri: "/hello/world123")
         let postRequest2 = try! Request(method: .POST, uri: "/hello/world123")
 
-        XCTAssert(try router.respond(getRequest1).bodyString == "get request")
-        XCTAssert(try router.respond(postRequest1).bodyString == "post request")
+        XCTAssert(try matcher.match(getRequest1)!.respond(getRequest1).bodyString == "get request")
+        XCTAssert(try matcher.match(postRequest1)!.respond(postRequest1).bodyString == "post request")
 
-        XCTAssert(try router.respond(getRequest2).status == .NotFound)
-        XCTAssert(try router.respond(postRequest2).status != .NotFound)
+        XCTAssert(matcher.match(getRequest2) == nil)
+        XCTAssert(matcher.match(postRequest2) != nil)
     }
 
-    func testTrieRouteMatcherParsesPathParameters() {
-        let router = Router(matcher: TrieRouteMatcher.self) { route in
-            route.get("/hello/world") {_ in return Response(body: "hello world - not!") }
-            route.get("/hello/:location") { return Response(body: "hello \($0.pathParameters["location"]!)") }
-            route.post("/hello/:location") { return Response(body: "hello \($0.pathParameters["location"]!)") }
-            route.get("/:greeting/:location") { return Response(body: "\($0.pathParameters["greeting"]!) \($0.pathParameters["location"]!)") }
+    func testMatcherParsesPathParameters(matcher: RouteMatcherType.Type) {
+
+        let routes = [
+            Route(methods: [.GET], path: "/hello/world", middleware: [], responder:  Responder {_ in return Response(body: "hello world - not!") }),
+            Route(methods: [.GET], path: "/hello/:location", middleware: [], responder: Responder { return Response(body: "hello \($0.pathParameters["location"]!)") }),
+            Route(methods: [.POST], path: "/hello/:location", middleware: [], responder: Responder { return Response(body: "hello \($0.pathParameters["location"]!)") }),
+            Route(methods: [.GET], path: "/:greeting/:location", middleware: [], responder: Responder { return Response(body: "\($0.pathParameters["greeting"]!) \($0.pathParameters["location"]!)") })
+        ]
+
+        let matcher = matcher.init(routes: routes)
+
+        func body(request: Request) -> String {
+            return try! matcher.match(request)!.respond(request).bodyString!
         }
 
         let helloWorld = try! Request(method: .GET, uri: "/hello/world")
@@ -112,9 +145,9 @@ class TrieRouteMatcherTests: XCTestCase {
         let postHelloWorld = try! Request(method: .POST, uri: "/hello/world")
         let heyAustralia = try! Request(method: .GET, uri: "/hey/australia")
 
-        XCTAssert(try router.respond(helloWorld).bodyString == "hello world - not!")
-        XCTAssert(try router.respond(helloAmerica).bodyString == "hello america")
-        XCTAssert(try router.respond(postHelloWorld).bodyString == "hello world")
-        XCTAssert(try router.respond(heyAustralia).bodyString == "hey australia")
+        XCTAssert(body(helloWorld) == "hello world - not!")
+        XCTAssert(body(helloAmerica) == "hello america")
+        XCTAssert(body(postHelloWorld) == "hello world")
+        XCTAssert(body(heyAustralia) == "hey australia")
     }
 }
