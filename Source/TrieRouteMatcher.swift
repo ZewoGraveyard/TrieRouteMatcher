@@ -35,36 +35,42 @@ public struct TrieRouteMatcher: RouteMatcherType {
         var nextComponentId = 1
 
         for route in routes {
-
-            // turn component (string) into an id (integer) for fast comparisons
-            let componentIds = route.path.split("/").map { component -> Int in
-
-                // if it already has a component with the same name, use that id
-                if let id = componentsTrie.findPayload(component.characters) {
+            
+            for method in route.methods {
+                
+                // add the method to the path so it is checked
+                let path = method.description + route.path
+                
+                // turn component (string) into an id (integer) for fast comparisons
+                let componentIds = path.split("/").map { component -> Int in
+                    
+                    // if it already has a component with the same name, use that id
+                    if let id = componentsTrie.findPayload(component.characters) {
+                        return id
+                    }
+                    
+                    let id: Int
+                    
+                    if component.characters.first == ":" {
+                        // if component is a parameter, give it a negative id
+                        id = -nextComponentId
+                    } else {
+                        // normal component, give it a positive id
+                        id = nextComponentId
+                    }
+                    
+                    // increment id for next component
+                    nextComponentId += 1
+                    
+                    // insert the component into the trie with the next id
+                    componentsTrie.insert(component.characters, payload: id)
+                    
                     return id
                 }
 
-                let id: Int
-
-                if component.characters.first == ":" {
-                    // if component is a parameter, give it a negative id
-                    id = -nextComponentId
-                } else {
-                    // normal component, give it a positive id
-                    id = nextComponentId
-                }
-
-                // increment id for next component
-                nextComponentId += 1
-
-                // insert the component into the trie with the next id
-                componentsTrie.insert(component.characters, payload: id)
-
-                return id
+                // insert the components with the end node containing the route
+                routesTrie.insert(componentIds, payload: route)
             }
-
-            // insert the components with the end node containing the route
-            routesTrie.insert(componentIds, payload: route)
         }
     }
 
@@ -73,7 +79,6 @@ public struct TrieRouteMatcher: RouteMatcherType {
         let parameter = parameterChars.dropFirst().reduce("") { $0.0 + String($0.1)} // drop colon (":"), then combine characters into string
         return parameter
     }
-
     func searchForRoute(head head: Trie<Int, Route>, components: [String], componentIndex startingIndex: Int, inout parameters: [String:String]) -> Route? {
 
         // topmost route node. children are searched for route matches,
@@ -174,7 +179,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
             return nil
         }
 
-        let components = path.split("/")
+        let components = [request.method.description] + path.split("/")
 
         var parameters = [String:String]()
 
