@@ -98,4 +98,23 @@ class TrieRouteMatcherTests: XCTestCase {
         XCTAssert(try router.respond(getRequest2).status == .NotFound)
         XCTAssert(try router.respond(postRequest2).status != .NotFound)
     }
+
+    func testTrieRouteMatcherParsesPathParameters() {
+        let router = Router(matcher: TrieRouteMatcher.self) { route in
+            route.get("/hello/world") {_ in return Response(body: "hello world - not!") }
+            route.get("/hello/:location") { return Response(body: "hello \($0.pathParameters["location"]!)") }
+            route.post("/hello/:location") { return Response(body: "hello \($0.pathParameters["location"]!)") }
+            route.get("/:greeting/:location") { return Response(body: "\($0.pathParameters["greeting"]!) \($0.pathParameters["location"]!)") }
+        }
+
+        let helloWorld = try! Request(method: .GET, uri: "/hello/world")
+        let helloAmerica = try! Request(method: .GET, uri: "/hello/america")
+        let postHelloWorld = try! Request(method: .POST, uri: "/hello/world")
+        let heyAustralia = try! Request(method: .GET, uri: "/hey/australia")
+
+        XCTAssert(try router.respond(helloWorld).bodyString == "hello world - not!")
+        XCTAssert(try router.respond(helloAmerica).bodyString == "hello america")
+        XCTAssert(try router.respond(postHelloWorld).bodyString == "hello world")
+        XCTAssert(try router.respond(heyAustralia).bodyString == "hey australia")
+    }
 }
