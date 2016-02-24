@@ -28,6 +28,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
     private var componentsTrie = Trie<Character, Int>()
     private var routesTrie = Trie<Int, Route>()
     public let routes: [Route]
+    private var parameterDictionary = [Int:String]()
 
     public init(routes: [Route]) {
         self.routes = routes
@@ -58,7 +59,13 @@ public struct TrieRouteMatcher: RouteMatcherType {
                         // normal component, give it a positive id
                         id = nextComponentId
                     }
-                    
+
+                    if id < 0 {
+                        // drop colon (":"), then combine characters into string
+                        let parameter = String(component.characters.dropFirst())
+                        parameterDictionary[id] = parameter
+                    }
+
                     // increment id for next component
                     nextComponentId += 1
                     
@@ -74,11 +81,6 @@ public struct TrieRouteMatcher: RouteMatcherType {
         }
     }
 
-    func getParameterFromId(id: Int) -> String? {
-        guard let parameterChars = self.componentsTrie.findByPayload(id) else { return nil }
-        let parameter = parameterChars.dropFirst().reduce("") { $0.0 + String($0.1)} // drop colon (":"), then combine characters into string
-        return parameter
-    }
     func searchForRoute(head head: Trie<Int, Route>, components: [String], componentIndex startingIndex: Int, inout parameters: [String:String]) -> Route? {
 
         // topmost route node. children are searched for route matches,
@@ -107,7 +109,8 @@ public struct TrieRouteMatcher: RouteMatcherType {
                     // it is a parameter route
                     if child.prefix < 0 {
                         head = child
-                        parameters[getParameterFromId(child.prefix!)!] = component
+                        let parameter = parameterDictionary[child.prefix!]
+                        parameters[parameter!] = component
                         continue componentLoop
                     }
                 }
@@ -144,7 +147,8 @@ public struct TrieRouteMatcher: RouteMatcherType {
                 if child.prefix < 0 {
                     if preferredHead == nil {
                         preferredHead = child
-                        parameters[getParameterFromId(child.prefix!)!] = component
+                        let parameter = parameterDictionary[child.prefix!]
+                        parameters[parameter!] = component
                     } else {
                         alternatives.append((componentIndex + 1, child))
                     }
@@ -179,7 +183,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
             return nil
         }
 
-        let components = [request.method.description] + path.split("/")
+        let components = [request.method.description] + path.unicodeScalars.split("/").map(String.init)
 
         var parameters = [String:String]()
 

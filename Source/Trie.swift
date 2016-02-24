@@ -40,6 +40,7 @@ public struct Trie<Element: Comparable, Payload> {
         self.payload = payload
         self.ending = ending
         self.children = children
+        self.children.sortInPlace()
     }
 }
 
@@ -97,7 +98,6 @@ extension Trie {
         var generator = generator
         
         guard let element = generator.next() else {
-            
             self.payload = self.payload ?? payload
             self.ending = true
             
@@ -119,6 +119,8 @@ extension Trie {
         new.insert(generator, payload: payload)
         
         self.children.append(new)
+
+        self.children.sortInPlace()
     }
 }
 
@@ -131,14 +133,30 @@ extension Trie {
         
         var generator = generator
         
-        guard let element = generator.next() else {
+        guard let target = generator.next() else {
             guard ending == true else { return nil }
             return self
         }
-        
-        for child in children {
-            if child.prefix == element {
+
+        // binary search
+        var lower = 0
+        var higher = children.count - 1
+
+        while (lower <= higher) {
+            let middle = (lower + higher) / 2
+            let child = children[middle]
+            guard let current = child.prefix else { continue }
+
+            if (current == target) {
                 return child.findLast(generator)
+            }
+
+            if (current < target) {
+                lower = middle + 1
+            }
+
+            if (current > target) {
+                higher = middle - 1
             }
         }
         
