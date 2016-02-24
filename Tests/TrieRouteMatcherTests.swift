@@ -48,6 +48,11 @@ class TrieRouteMatcherTests: XCTestCase {
         testMatcherParsesPathParameters(TrieRouteMatcher.self)
     }
 
+    func testPerformanceOfTrieRouteMatcher() {
+        measureBlock {
+            self.testPerformanceOfMatcher(TrieRouteMatcher.self)
+        }
+    }
 
     func testMatcherMatchesRoutes(matcher: RouteMatcherType.Type) {
 
@@ -149,5 +154,111 @@ class TrieRouteMatcherTests: XCTestCase {
         XCTAssert(body(helloAmerica) == "hello america")
         XCTAssert(body(postHelloWorld) == "hello world")
         XCTAssert(body(heyAustralia) == "hey australia")
+    }
+
+    func testPerformanceOfMatcher(matcher: RouteMatcherType.Type) {
+        let responder = Responder { request in
+            return Response(status: .OK)
+        }
+
+        let combos: [(HTTP.Method, String)] = [
+            // Objects
+            (.POST, "/1/classes/:className"),
+            (.GET, "/1/classes/:className/:objectId"),
+            (.PUT, "/1/classes/:className/:objectId"),
+            (.GET, "/1/classes/:className"),
+            (.DELETE, "/1/classes/:className/:objectId"),
+
+            // Users
+            (.POST, "/1/users"),
+            (.GET, "/1/login"),
+            (.GET, "/1/users/:objectId"),
+            (.PUT, "/1/users/:objectId"),
+            (.GET, "/1/users"),
+            (.DELETE, "/1/users/:objectId"),
+            (.POST, "/1/requestPasswordReset"),
+
+            // Roles
+            (.POST, "/1/roles"),
+            (.GET, "/1/roles/:objectId"),
+            (.PUT, "/1/roles/:objectId"),
+            (.GET, "/1/roles"),
+            (.DELETE, "/1/roles/:objectId"),
+
+            // Files
+            (.POST, "/1/files/:fileName"),
+
+            // Analytics
+            (.POST, "/1/events/:eventName"),
+
+            // Push Notifications
+            (.POST, "/1/push"),
+
+            // Installations
+            (.POST, "/1/installations"),
+            (.GET, "/1/installations/:objectId"),
+            (.PUT, "/1/installations/:objectId"),
+            (.GET, "/1/installations"),
+            (.DELETE, "/1/installations/:objectId"),
+
+            // Cloud Functions
+            (.POST, "/1/functions"),
+        ]
+
+        let routes = combos.map({ Route(methods: [$0], path: $1, middleware: [], responder: responder) })
+
+
+        let allCalls: [(HTTP.Method, String)] = [
+            // Objects
+            (.POST, "/1/classes/test"),
+            (.GET, "/1/classes/test/test"),
+            (.PUT, "/1/classes/test/test"),
+            (.GET, "/1/classes/test"),
+            (.DELETE, "/1/classes/test/test"),
+
+            // Users
+            (.POST, "/1/users"),
+            (.GET, "/1/login"),
+            (.GET, "/1/users/test"),
+            (.PUT, "/1/users/test"),
+            (.GET, "/1/users"),
+            (.DELETE, "/1/users/test"),
+            (.POST, "/1/requestPasswordReset"),
+
+            // Roles
+            (.POST, "/1/roles"),
+            (.GET, "/1/roles/test"),
+            (.PUT, "/1/roles/test"),
+            (.GET, "/1/roles"),
+            (.DELETE, "/1/roles/test"),
+
+            // Files
+            (.POST, "/1/files/test"),
+
+            // Analytics
+            (.POST, "/1/events/test"),
+
+            // Push Notifications
+            (.POST, "/1/push"),
+
+            // Installations
+            (.POST, "/1/installations"),
+            (.GET, "/1/installations/test"),
+            (.PUT, "/1/installations/test"),
+            (.GET, "/1/installations"),
+            (.DELETE, "/1/installations/test"),
+
+            // Cloud Functions
+            (.POST, "/1/functions"),
+        ]
+
+        let matcher = matcher.init(routes: routes)
+
+        for _ in 0...50 {
+            for combo in allCalls {
+                let request = try! Request(method: combo.0, uri: combo.1)
+                matcher.match(request)
+            }
+        }
     }
 }
