@@ -141,8 +141,8 @@ class TrieRouteMatcherTests: XCTestCase {
 
         let matcher = matcher.init(routes: routes)
 
-        func body(request: Request) -> String {
-            return try! matcher.match(request)!.respond(request).bodyString!
+        func body(request: Request) -> String? {
+            return try! matcher.match(request)?.respond(request).bodyString
         }
 
         let helloWorld = try! Request(method: .GET, uri: "/hello/world")
