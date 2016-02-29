@@ -205,3 +205,15 @@ extension Trie where Payload: Equatable {
         return nil
     }
 }
+
+extension Trie {
+    mutating func sort(isOrderedBefore: (Trie<Element, Payload>, Trie<Element, Payload>) -> Bool) {
+        self.children = children.map { child in
+            var child = child
+            child.sort(isOrderedBefore)
+            return child
+        }
+
+        self.children.sortInPlace(isOrderedBefore)
+    }
+}

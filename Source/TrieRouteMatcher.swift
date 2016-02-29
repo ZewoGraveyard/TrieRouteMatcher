@@ -25,63 +25,37 @@
 @_exported import HTTP
 
 public struct TrieRouteMatcher: RouteMatcherType {
-    private var componentsTrie = Trie<Character, Int>()
-    private var routesTrie = Trie<Int, Route>()
+    private var routesTrie = Trie<String, Route>()
     public let routes: [Route]
-    private var parameterDictionary = [Int:String]()
 
     public init(routes: [Route]) {
         self.routes = routes
 
-        var nextComponentId = 1
-
         for route in routes {
-            
+
             for method in route.methods {
-                
+
                 // add the method to the path so it is checked
                 let path = method.description + route.path
-                
-                // turn component (string) into an id (integer) for fast comparisons
-                let componentIds = path.split("/").map { component -> Int in
-                    
-                    // if it already has a component with the same name, use that id
-                    if let id = componentsTrie.findPayload(component.characters) {
-                        return id
-                    }
-                    
-                    let id: Int
-                    
-                    if component.characters.first == ":" {
-                        // if component is a parameter, give it a negative id
-                        id = -nextComponentId
-                    } else {
-                        // normal component, give it a positive id
-                        id = nextComponentId
-                    }
 
-                    if id < 0 {
-                        // drop colon (":"), then combine characters into string
-                        let parameter = String(component.characters.dropFirst())
-                        parameterDictionary[id] = parameter
-                    }
+                // break into components
+                let components = path.split("/")
 
-                    // increment id for next component
-                    nextComponentId += 1
-                    
-                    // insert the component into the trie with the next id
-                    componentsTrie.insert(component.characters, payload: id)
-                    
-                    return id
-                }
-
-                // insert the components with the end node containing the route
-                routesTrie.insert(componentIds, payload: route)
+                // insert components into trie with route being the ending payload
+                routesTrie.insert(components, payload: route)
             }
+        }
+
+        // ensure parameter paths are processed later than static paths
+        routesTrie.sort { t1, t2 in
+            if t1.prefix?.characters.first == ":" {
+                return false
+            }
+            return true
         }
     }
 
-    func searchForRoute(head head: Trie<Int, Route>, components: [String], componentIndex startingIndex: Int, inout parameters: [String:String]) -> Route? {
+    func searchForRoute(head head: Trie<String, Route>, components: [String], componentIndex startingIndex: Int, inout parameters: [String:String]) -> Route? {
 
         // topmost route node. children are searched for route matches,
         // if they match, that matching node gets set to head
@@ -91,90 +65,51 @@ public struct TrieRouteMatcher: RouteMatcherType {
         // store the alternatives and the index of the component at which it found the alternative
         // node so that it can backtrack and search through that alternative node if the original
         // node ends up 404'ing
-        var alternatives: [(Int, Trie<Int, Route>)] = []
+        var alternatives: [(Int, Trie<String, Route>)] = []
 
         // go through the components starting at the start index. the start index can change
         // to be more than 0 if the trie ran into a dead-end and goes backwards (recursively) through its alternatives
         componentLoop: for (componentIndex, component) in components[startingIndex..<components.count].enumerate() {
 
-            // search for component in the components dictionary
-            let id = componentsTrie.findPayload(component.characters)
+            // the first child to match will be the "preferred" child. other
+            // children will go into the alternatives array
+            var preferred: Trie<String, Route>?
 
-            // not found in the dictionary - either parameter or 404
-            if id == nil {
-
-                for child in head.children {
-
-                    // if the id of the route component is negative,
-                    // it is a parameter route
-                    if child.prefix < 0 {
-                        head = child
-                        let parameter = parameterDictionary[child.prefix!]
-                        parameters[parameter!] = component
-                        continue componentLoop
-                    }
-                }
-
-                // no routes matches
-                return nil
-            }
-
-            // need to sort these in descending order, otherwise
-            // children with negative prefixes (parameters) can take
-            // priority over static paths (which they shouldnt)
-            head.children.sortInPlace { n1, n2 in
-                n1.prefix > n2.prefix
-            }
-
-            // gets set to the first node to match. however, since we want to fill up alternatives,
-            // we wait until we loop through all the children before descending further down the
-            // trie through the preferredHead node
-            var preferredHead: Trie<Int, Route>? = nil
-
-            // component exists in the routes
             for child in head.children {
 
-                // normal, static route
-                if child.prefix == id {
-                    if preferredHead == nil { preferredHead = child }
+                // route matches
+                if child.prefix == component {
+                    if preferred == nil { preferred = child }
                     else { alternatives.append((componentIndex + 1, child)) }
                     continue
                 }
 
-                // still could be a parameter
-                // ex: route.get("/api/:version")
-                // request: /api/api
-                if child.prefix < 0 {
-                    if preferredHead == nil {
-                        preferredHead = child
-                        let parameter = parameterDictionary[child.prefix!]
-                        parameters[parameter!] = component
-                    } else {
-                        alternatives.append((componentIndex + 1, child))
-                    }
+                // path parameter
+                if child.prefix?.characters.first == ":" {
+                    if preferred == nil { preferred = child }
+                    else { alternatives.append((componentIndex + 1, child)) }
+                    let param = String(child.prefix!.characters.dropFirst())
+                    parameters[param] = component
+                    continue
                 }
             }
 
-            // route was matched
-            if let preferredHead = preferredHead {
-                head = preferredHead
+            // if there is a preferred child, use that as the next head
+            if let preferred = preferred {
+                head = preferred
                 continue
             }
 
-            // the path we just took led to a 404. go through all alternative
-            // paths (could be an empty array) and try those as well
-            for alternative in alternatives {
-
-                let matched = searchForRoute(head: alternative.1, components: components, componentIndex: alternative.0, parameters: &parameters)
-
-                if matched != nil { return matched }
+            // this path was wrong - try the alternatives instead
+            for (index, node) in alternatives {
+                let matched = searchForRoute(head: node, components: components, componentIndex: index, parameters: &parameters)
+                if let matched = matched { return matched }
             }
 
-            // 404 even after going through alternatives. no routes matched
+            // 404
             return nil
         }
 
-        // success! found a route.
         return head.payload
     }
 
@@ -187,13 +122,10 @@ public struct TrieRouteMatcher: RouteMatcherType {
 
         var parameters = [String:String]()
 
-        // start searching for the route from the head of the routesTrie
         let matched = searchForRoute(head: routesTrie, components: components, componentIndex: 0, parameters: &parameters)
 
-        // ensure the route was found
         guard let route = matched else { return nil }
 
-        // no parameters? no problem
         if parameters.isEmpty {
             return route
         }
@@ -218,6 +150,6 @@ public struct TrieRouteMatcher: RouteMatcherType {
 
 extension TrieRouteMatcher: CustomStringConvertible {
     public var description: String {
-        return componentsTrie.description + "\n" + routesTrie.description
+        return routesTrie.description
     }
 }
