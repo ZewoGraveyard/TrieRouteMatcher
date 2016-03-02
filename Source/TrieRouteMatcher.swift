@@ -25,25 +25,18 @@
 @_exported import HTTP
 
 public struct TrieRouteMatcher: RouteMatcherType {
-    private var routesTrie = Trie<String, Route>()
-    public let routes: [Route]
+    private var routesTrie = Trie<String, RouteType>()
+    public let routes: [RouteType]
 
-    public init(routes: [Route]) {
+    public init(routes: [RouteType]) {
         self.routes = routes
 
         for route in routes {
+            // break into components
+            let components = route.path.split("/")
 
-            for method in route.methods {
-
-                // add the method to the path so it is checked
-                let path = method.description + route.path
-
-                // break into components
-                let components = path.split("/")
-
-                // insert components into trie with route being the ending payload
-                routesTrie.insert(components, payload: route)
-            }
+            // insert components into trie with route being the ending payload
+            routesTrie.insert(components, payload: route)
         }
 
         // ensure parameter paths are processed later than static paths
@@ -55,7 +48,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
         }
     }
 
-    func searchForRoute(head head: Trie<String, Route>, components: [String], componentIndex startingIndex: Int, inout parameters: [String:String]) -> Route? {
+    func searchForRoute(head head: Trie<String, RouteType>, components: [String], componentIndex startingIndex: Int, inout parameters: [String:String]) -> RouteType? {
 
         // topmost route node. children are searched for route matches,
         // if they match, that matching node gets set to head
@@ -65,7 +58,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
         // store the alternatives and the index of the component at which it found the alternative
         // node so that it can backtrack and search through that alternative node if the original
         // node ends up 404'ing
-        var alternatives: [(Int, Trie<String, Route>)] = []
+        var alternatives: [(Int, Trie<String, RouteType>)] = []
 
         // go through the components starting at the start index. the start index can change
         // to be more than 0 if the trie ran into a dead-end and goes backwards (recursively) through its alternatives
@@ -73,7 +66,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
 
             // the first child to match will be the "preferred" child. other
             // children will go into the alternatives array
-            var preferred: Trie<String, Route>?
+            var preferred: Trie<String, RouteType>?
 
             for child in head.children {
 
@@ -113,43 +106,77 @@ public struct TrieRouteMatcher: RouteMatcherType {
         return head.payload
     }
 
-    public func match(request: Request) -> Route? {
+    public func match(request: Request) -> RouteType? {
         guard let path = request.path else {
             return nil
         }
 
-        let components = [request.method.description] + path.unicodeScalars.split("/").map(String.init)
+        let components = path.unicodeScalars.split("/").map(String.init)
+        var parameters: [String: String] = [:]
+        let matched = searchForRoute(
+            head: routesTrie,
+            components: components,
+            componentIndex: 0,
+            parameters: &parameters
+        )
 
-        var parameters = [String:String]()
-
-        let matched = searchForRoute(head: routesTrie, components: components, componentIndex: 0, parameters: &parameters)
-
-        guard let route = matched else { return nil }
+        guard let route = matched else {
+            return nil
+        }
 
         if parameters.isEmpty {
             return route
         }
 
         // wrap the route to inject the pathParameters upon receiving a request
-        let wrappedRoute = Route(
-            methods: route.methods,
+        return Route(
             path: route.path,
-            middleware: route.middleware,
-            responder: Responder { req in
-                var req = req
-                for (key, parameter) in parameters {
-                    req.pathParameters[key] = parameter
-                }
-                return try route.respond(req)
-            }
-        )
+            actions: route.actions.mapValues { action in
+                Action(
+                    middleware: action.middleware,
+                    responder: Responder { request in
+                        var request = request
 
-        return wrappedRoute
+                        for (key, parameter) in parameters {
+                            request.pathParameters[key] = parameter
+                        }
+
+                        return try action.responder.respond(request)
+                    }
+                )
+            },
+            fallback: route.fallback
+        )
     }
 }
 
 extension TrieRouteMatcher: CustomStringConvertible {
     public var description: String {
         return routesTrie.description
+    }
+}
+
+struct Route: RouteType {
+    let path: String
+    var actions: [Method: Action]
+    var fallback: Action
+
+    init(path: String, actions: [Method: Action], fallback: Action) {
+        self.path = path
+        self.actions = actions
+        self.fallback = fallback
+    }
+}
+
+extension Dictionary {
+    init<S: SequenceType where S.Generator.Element == Element>(_ sequence: S) {
+        self.init()
+        for (key, value) in sequence {
+            self[key] = value
+        }
+    }
+
+    func mapValues<T>(transform: Value -> T) -> Dictionary<Key, T> {
+        return Dictionary<Key, T>(zip(keys, values.map(transform)))
     }
 }
