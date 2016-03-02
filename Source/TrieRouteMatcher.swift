@@ -169,14 +169,13 @@ struct Route: RouteType {
 }
 
 extension Dictionary {
-    init<S: SequenceType where S.Generator.Element == Element>(_ sequence: S) {
-        self.init()
-        for (key, value) in sequence {
-            self[key] = value
-        }
-    }
+    func mapValues<T>(transform: Value -> T) -> [Key: T] {
+        var dictionary: [Key: T] = [:]
 
-    func mapValues<T>(transform: Value -> T) -> Dictionary<Key, T> {
-        return Dictionary<Key, T>(zip(keys, values.map(transform)))
+        for (key, value) in self {
+            dictionary[key] = transform(value)
+        }
+
+        return dictionary
     }
 }
