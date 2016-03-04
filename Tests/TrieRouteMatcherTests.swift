@@ -63,6 +63,10 @@ class TrieRouteMatcherTests: XCTestCase {
         testMatcherParsesPathParameters(TrieRouteMatcher.self)
     }
 
+    func testTrieRouteMatcherMatchesWildstars() {
+        testMatcherMatchesWildstars(TrieRouteMatcher.self)
+    }
+
     func testPerformanceOfTrieRouteMatcher() {
         measureBlock {
             self.testPerformanceOfMatcher(TrieRouteMatcher.self)
@@ -156,6 +160,32 @@ class TrieRouteMatcherTests: XCTestCase {
         XCTAssert(body(helloWorld) == "hello world - not!")
         XCTAssert(body(helloAmerica) == "hello america")
         XCTAssert(body(heyAustralia) == "hey australia")
+    }
+
+    func testMatcherMatchesWildstars(matcher: RouteMatcherType.Type) {
+
+        func testRoute(path path: String, response: String) -> RouteType {
+            return TestRoute(path: path, actions: [.GET: Action { _ in Response(body: response) }])
+        }
+
+        let routes: [RouteType] = [
+            testRoute(path: "/*", response: "wild"),
+            testRoute(path: "/hello/*", response: "hello wild"),
+            testRoute(path: "/hello/dan", response: "hello dan"),
+        ]
+
+        let matcher = matcher.init(routes: routes)
+
+        func route(path: String, expectedResponse: String) -> Bool {
+            let request = try! Request(method: .GET, uri: path)
+            let matched = matcher.match(request)
+
+            return try! matched!.respond(request).bodyString == expectedResponse
+        }
+
+        XCTAssert(route("/a/s/d/f", expectedResponse: "wild"))
+        XCTAssert(route("/hello/asdf", expectedResponse: "hello wild"))
+        XCTAssert(route("/hello/dan", expectedResponse: "hello dan"))
     }
 
     func testPerformanceOfMatcher(matcher: RouteMatcherType.Type) {

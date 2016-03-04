@@ -41,10 +41,17 @@ public struct TrieRouteMatcher: RouteMatcherType {
 
         // ensure parameter paths are processed later than static paths
         routesTrie.sort { t1, t2 in
-            if t1.prefix?.characters.first == ":" {
-                return false
+            func rank(t: Trie<String, RouteType>) -> Int {
+                if t.prefix == "*" {
+                    return 3
+                }
+                if t.prefix?.characters.first == ":" {
+                    return 2
+                }
+                return 1
             }
-            return true
+
+            return rank(t1) < rank(t2)
         }
     }
 
@@ -77,11 +84,22 @@ public struct TrieRouteMatcher: RouteMatcherType {
                 parameters[param] = component
                 continue
             }
+
+            // matched wildstar
+            if child.prefix == "*" {
+                paths.append(child)
+                continue
+            }
         }
 
         // go through all the paths and recursively try to match them. if
         // any of them match, the route has been matched
         for path in paths {
+
+            if let route = path.payload where path.prefix == "*" {
+                return route
+            }
+
             let matched = searchForRoute(head: path, components: components, parameters: &parameters)
             if let matched = matched { return matched }
         }
