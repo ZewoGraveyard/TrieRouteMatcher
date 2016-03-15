@@ -63,6 +63,10 @@ class TrieRouteMatcherTests: XCTestCase {
         testMatcherParsesPathParameters(TrieRouteMatcher.self)
     }
 
+    func testTrieRouteMatcherMatchesWildstars() {
+        testMatcherMatchesWildstars(TrieRouteMatcher.self)
+    }
+
     func testPerformanceOfTrieRouteMatcher() {
         measureBlock {
             self.testPerformanceOfMatcher(TrieRouteMatcher.self)
@@ -158,50 +162,132 @@ class TrieRouteMatcherTests: XCTestCase {
         XCTAssert(body(heyAustralia) == "hey australia")
     }
 
+    func testMatcherMatchesWildstars(matcher: RouteMatcherType.Type) {
+
+        func testRoute(path path: String, response: String) -> RouteType {
+            return TestRoute(path: path, actions: [.GET: Action { _ in Response(body: response) }])
+        }
+
+        let routes: [RouteType] = [
+            testRoute(path: "/*", response: "wild"),
+            testRoute(path: "/hello/*", response: "hello wild"),
+            testRoute(path: "/hello/dan", response: "hello dan"),
+        ]
+
+        let matcher = matcher.init(routes: routes)
+
+        func route(path: String, expectedResponse: String) -> Bool {
+            let request = try! Request(method: .GET, uri: path)
+            let matched = matcher.match(request)
+
+            return try! matched!.respond(request).bodyString == expectedResponse
+        }
+
+        XCTAssert(route("/a/s/d/f", expectedResponse: "wild"))
+        XCTAssert(route("/hello/asdf", expectedResponse: "hello wild"))
+        XCTAssert(route("/hello/dan", expectedResponse: "hello dan"))
+    }
+
     func testPerformanceOfMatcher(matcher: RouteMatcherType.Type) {
         let action = Action(ok)
 
-        let paths: [String] = [
+        let routePairs: [(HTTP.Method, String)] = [
             // Objects
-            "/1/classes/:className",
-            "/1/classes/:className/:objectId",
+            (.POST, "/1/classes/:className"),
+            (.GET, "/1/classes/:className/:objectId"),
+            (.PUT, "/1/classes/:className/:objectId"),
+            (.GET, "/1/classes/:className"),
+            (.DELETE, "/1/classes/:className/:objectId"),
 
             // Users
-            "/1/users",
-            "/1/login",
-            "/1/users/:objectId",
-            "/1/requestPasswordReset",
+            (.POST, "/1/users"),
+            (.GET, "/1/login"),
+            (.GET, "/1/users/:objectId"),
+            (.PUT, "/1/users/:objectId"),
+            (.GET, "/1/users"),
+            (.DELETE, "/1/users/:objectId"),
+            (.POST, "/1/requestPasswordReset"),
 
             // Roles
-            "/1/roles",
-            "/1/roles/:objectId",
+            (.POST, "/1/roles"),
+            (.GET, "/1/roles/:objectId"),
+            (.PUT, "/1/roles/:objectId"),
+            (.GET, "/1/roles"),
+            (.DELETE, "/1/roles/:objectId"),
 
             // Files
-            "/1/files/:fileName",
+            (.POST, "/1/files/:fileName"),
 
             // Analytics
-            "/1/events/:eventName",
+            (.POST, "/1/events/:eventName"),
 
             // Push Notifications
-            "/1/push",
+            (.POST, "/1/push"),
 
             // Installations
-            "/1/installations",
-            "/1/installations/:objectId",
+            (.POST, "/1/installations"),
+            (.GET, "/1/installations/:objectId"),
+            (.PUT, "/1/installations/:objectId"),
+            (.GET, "/1/installations"),
+            (.DELETE, "/1/installations/:objectId"),
 
             // Cloud Functions
-            "/1/functions",
-            ]
+            (.POST, "/1/functions"),
+        ]
 
-        let routes: [RouteType] = paths.map {
+        let requestPairs: [(HTTP.Method, String)] = [
+            // Objects
+            (.POST, "/1/classes/test"),
+            (.GET, "/1/classes/test/test"),
+            (.PUT, "/1/classes/test/test"),
+            (.GET, "/1/classes/test"),
+            (.DELETE, "/1/classes/test/test"),
+
+            // Users
+            (.POST, "/1/users"),
+            (.GET, "/1/login"),
+            (.GET, "/1/users/test"),
+            (.PUT, "/1/users/test"),
+            (.GET, "/1/users"),
+            (.DELETE, "/1/users/test"),
+            (.POST, "/1/requestPasswordReset"),
+
+            // Roles
+            (.POST, "/1/roles"),
+            (.GET, "/1/roles/test"),
+            (.PUT, "/1/roles/test"),
+            (.GET, "/1/roles"),
+            (.DELETE, "/1/roles/test"),
+
+            // Files
+            (.POST, "/1/files/test"),
+
+            // Analytics
+            (.POST, "/1/events/test"),
+
+            // Push Notifications
+            (.POST, "/1/push"),
+
+            // Installations
+            (.POST, "/1/installations"),
+            (.GET, "/1/installations/test"),
+            (.PUT, "/1/installations/test"),
+            (.GET, "/1/installations"),
+            (.DELETE, "/1/installations/test"),
+
+            // Cloud Functions
+            (.POST, "/1/functions"),
+        ]
+
+        let routes: [RouteType] = routePairs.map {
             TestRoute(
-                path: $0,
-                actions: [.GET: action]
+                path: $0.1,
+                actions: [$0.0: action]
             )
         }
 
-        let requests = paths.map {
-            Request(method: .GET, uri: URI(path: $0))
+        let requests = requestPairs.map {
+            Request(method: $0.0, uri: URI(path: $0.1))
         }
 
         let matcher = matcher.init(routes: routes)
