@@ -128,21 +128,15 @@ public struct TrieRouteMatcher: RouteMatcherType {
             return route
         }
 
+        let parametersMiddleware = PathParametersMiddleware(pathParameters: parameters)
+
         // wrap the route to inject the pathParameters upon receiving a request
         return Route(
             path: route.path,
             actions: route.actions.mapValues { action in
                 Action(
-                    middleware: action.middleware,
-                    responder: Responder { request in
-                        var request = request
-
-                        for (key, parameter) in parameters {
-                            request.pathParameters[key] = parameter
-                        }
-
-                        return try action.responder.respond(request)
-                    }
+                    middleware: [parametersMiddleware] + action.middleware,
+                    responder: action.responder
                 )
             },
             fallback: route.fallback
@@ -153,18 +147,6 @@ public struct TrieRouteMatcher: RouteMatcherType {
 extension TrieRouteMatcher: CustomStringConvertible {
     public var description: String {
         return routesTrie.description
-    }
-}
-
-struct Route: RouteType {
-    let path: String
-    var actions: [Method: Action]
-    var fallback: Action
-
-    init(path: String, actions: [Method: Action], fallback: Action) {
-        self.path = path
-        self.actions = actions
-        self.fallback = fallback
     }
 }
 
