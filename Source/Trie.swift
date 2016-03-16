@@ -40,7 +40,7 @@ public struct Trie<Element: Comparable, Payload> {
         self.payload = payload
         self.ending = ending
         self.children = children
-        self.children.sortInPlace()
+        self.children.sort()
     }
 }
 
@@ -89,51 +89,51 @@ extension Trie {
 }
 
 extension Trie {
-    mutating func insert<Sequence: SequenceType where Sequence.Generator.Element == Element>(sequence: Sequence, payload: Payload? = nil) {
-        insert(sequence.generate(), payload: payload)
+    mutating func insert<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(sequence: SequenceType, payload: Payload? = nil) {
+        insert(sequence.makeIterator(), payload: payload)
     }
     
-    mutating func insert<Generator: GeneratorType where Generator.Element == Element>(generator: Generator, payload: Payload? = nil) {
+    mutating func insert<Iterator: IteratorProtocol where Iterator.Element == Element>(iterator: Iterator, payload: Payload? = nil) {
         
-        var generator = generator
+        var iterator = iterator
         
-        guard let element = generator.next() else {
+        guard let element = iterator.next() else {
             self.payload = self.payload ?? payload
             self.ending = true
             
             return
         }
         
-        for (index, child) in children.enumerate() {
+        for (index, child) in children.enumerated() {
             var child = child
             if child.prefix == element {
-                child.insert(generator, payload: payload)
+                child.insert(iterator, payload: payload)
                 self.children[index] = child
-                self.children.sortInPlace()
+                self.children.sort()
                 return
             }
         }
         
         var new = Trie<Element, Payload>(prefix: element, payload: nil, ending: false, children: [])
         
-        new.insert(generator, payload: payload)
+        new.insert(iterator, payload: payload)
         
         self.children.append(new)
 
-        self.children.sortInPlace()
+        self.children.sort()
     }
 }
 
 extension Trie {
-    func findLast<Sequence: SequenceType where Sequence.Generator.Element == Element>(sequence: Sequence) -> Trie<Element, Payload>? {
-        return findLast(sequence.generate())
+    func findLast<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(sequence: SequenceType) -> Trie<Element, Payload>? {
+        return findLast(sequence.makeIterator())
     }
     
-    func findLast<Generator: GeneratorType where Generator.Element == Element>(generator: Generator) -> Trie<Element, Payload>? {
+    func findLast<Iterator: IteratorProtocol where Iterator.Element == Element>(iterator: Iterator) -> Trie<Element, Payload>? {
         
-        var generator = generator
+        var iterator = iterator
         
-        guard let target = generator.next() else {
+        guard let target = iterator.next() else {
             guard ending == true else { return nil }
             return self
         }
@@ -148,7 +148,7 @@ extension Trie {
             guard let current = child.prefix else { continue }
 
             if (current == target) {
-                return child.findLast(generator)
+                return child.findLast(iterator)
             }
 
             if (current < target) {
@@ -165,21 +165,21 @@ extension Trie {
 }
 
 extension Trie {
-    func findPayload<Sequence: SequenceType where Sequence.Generator.Element == Element>(sequence: Sequence) -> Payload? {
-        return findPayload(sequence.generate())
+    func findPayload<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(sequence: SequenceType) -> Payload? {
+        return findPayload(sequence.makeIterator())
     }
-    func findPayload<Generator: GeneratorType where Generator.Element == Element>(generator: Generator) -> Payload? {
-        return findLast(generator)?.payload
+    func findPayload<Iterator: IteratorProtocol where Iterator.Element == Element>(iterator: Iterator) -> Payload? {
+        return findLast(iterator)?.payload
     }
 }
 
 extension Trie {
-    func contains<Sequence: SequenceType where Sequence.Generator.Element == Element>(sequence: Sequence) -> Bool {
-        return contains(sequence.generate())
+    func contains<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(sequence: SequenceType) -> Bool {
+        return contains(sequence.makeIterator())
     }
     
-    func contains<Generator: GeneratorType where Generator.Element == Element>(generator: Generator) -> Bool {
-        return findLast(generator) != nil
+    func contains<Iterator: IteratorProtocol where Iterator.Element == Element>(iterator: Iterator) -> Bool {
+        return findLast(iterator) != nil
     }
 }
 
@@ -214,6 +214,6 @@ extension Trie {
             return child
         }
 
-        self.children.sortInPlace(isOrderedBefore)
+        self.children.sort(isOrderedBefore: isOrderedBefore)
     }
 }

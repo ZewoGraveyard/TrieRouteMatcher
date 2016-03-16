@@ -55,7 +55,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
         }
     }
 
-    func searchForRoute(head head: Trie<String, RouteType>, components: IndexingGenerator<[String]>, inout parameters: [String:String]) -> RouteType? {
+    func searchForRoute(head head: Trie<String, RouteType>, components: IndexingIterator<[String]>, parameters: inout [String:String]) -> RouteType? {
 
         var components = components
 
@@ -113,12 +113,12 @@ public struct TrieRouteMatcher: RouteMatcherType {
             return nil
         }
 
-        let components = path.unicodeScalars.split("/").map(String.init)
+        let components = path.unicodeScalars.split(separator: "/").map(String.init)
         var parameters: [String: String] = [:]
 
         let matched = searchForRoute(
             head: routesTrie,
-            components: components.generate(),
+            components: components.makeIterator(),
             parameters: &parameters
         )
 
