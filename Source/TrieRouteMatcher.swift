@@ -33,7 +33,8 @@ public struct TrieRouteMatcher: RouteMatcherType {
 
         for route in routes {
             // break into components
-            let components = route.path.characters.split(separator: "/").map(String.init)
+            let components = route.path.split("/")
+
             // insert components into trie with route being the ending payload
             routesTrie.insert(components, payload: route)
         }
