@@ -23,12 +23,13 @@
 // SOFTWARE.
 
 @_exported import HTTP
+@_exported import PathParameterMiddleware
 
-public struct TrieRouteMatcher: RouteMatcherType {
-    private var routesTrie = Trie<String, RouteType>()
-    public let routes: [RouteType]
+public struct TrieRouteMatcher: RouteMatcher {
+    private var routesTrie = Trie<String, Route>()
+    public let routes: [Route]
 
-    public init(routes: [RouteType]) {
+    public init(routes: [Route]) {
         self.routes = routes
 
         for route in routes {
@@ -41,7 +42,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
 
         // ensure parameter paths are processed later than static paths
         routesTrie.sort { t1, t2 in
-            func rank(t: Trie<String, RouteType>) -> Int {
+            func rank(t: Trie<String, Route>) -> Int {
                 if t.prefix == "*" {
                     return 3
                 }
@@ -55,11 +56,11 @@ public struct TrieRouteMatcher: RouteMatcherType {
         }
     }
 
-    func searchForRoute(head head: Trie<String, RouteType>, components: IndexingIterator<[String]>, parameters: inout [String:String]) -> RouteType? {
+    func searchForRoute(head head: Trie<String, Route>, components: IndexingIterator<[String]>, parameters: inout [String:String]) -> Route? {
 
         var components = components
 
-        // if no more components, we hit the end of the path and 
+        // if no more components, we hit the end of the path and
         // may have matched something
         guard let component = components.next() else {
             return head.payload
@@ -67,7 +68,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
 
         // store each possible path (ie both a static and a parameter)
         // and then go through them all
-        var paths = [Trie<String, RouteType>]()
+        var paths = [Trie<String, Route>]()
 
         for child in head.children {
 
@@ -108,7 +109,7 @@ public struct TrieRouteMatcher: RouteMatcherType {
         return nil
     }
 
-    public func match(request: Request) -> RouteType? {
+    public func match(request: Request) -> Route? {
         guard let path = request.path else {
             return nil
         }
@@ -130,17 +131,12 @@ public struct TrieRouteMatcher: RouteMatcherType {
             return route
         }
 
-        let parametersMiddleware = PathParametersMiddleware(pathParameters: parameters)
+        let parametersMiddleware = PathParameterMiddleware(parameters)
 
         // wrap the route to inject the pathParameters upon receiving a request
-        return Route(
+        return BasicRoute(
             path: route.path,
-            actions: route.actions.mapValues { action in
-                Action(
-                    middleware: [parametersMiddleware] + action.middleware,
-                    responder: action.responder
-                )
-            },
+            actions: route.actions.mapValues({parametersMiddleware.intercept($0)}),
             fallback: route.fallback
         )
     }
