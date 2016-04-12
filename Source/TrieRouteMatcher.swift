@@ -136,7 +136,7 @@ public struct TrieRouteMatcher: RouteMatcher {
         // wrap the route to inject the pathParameters upon receiving a request
         return BasicRoute(
             path: route.path,
-            actions: route.actions.mapValues({parametersMiddleware.intercept($0)}),
+            actions: route.actions.mapValues({parametersMiddleware.chain(to: $0)}),
             fallback: route.fallback
         )
     }

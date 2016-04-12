@@ -78,7 +78,7 @@ extension Trie {
         
         let children = self.children
             .map { $0.pretty(depth: depth + 1) }
-            .reduce("", combine: +)
+            .reduce("", combine: { $0 + $1})
         
         let pretty = "- \(key)\(payload)" + "\n" + "\(children)"
         
