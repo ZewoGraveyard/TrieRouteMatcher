@@ -60,7 +60,7 @@ extension Trie {
         return pretty(depth: 0)
     }
     
-    func pretty(depth depth: Int) -> String {
+    func pretty(depth: Int) -> String {
         
         let key: String
         if let k = self.prefix {
@@ -89,11 +89,11 @@ extension Trie {
 }
 
 extension Trie {
-    mutating func insert<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(sequence: SequenceType, payload: Payload? = nil) {
+    mutating func insert<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(_ sequence: SequenceType, payload: Payload? = nil) {
         insert(sequence.makeIterator(), payload: payload)
     }
     
-    mutating func insert<Iterator: IteratorProtocol where Iterator.Element == Element>(iterator: Iterator, payload: Payload? = nil) {
+    mutating func insert<Iterator: IteratorProtocol where Iterator.Element == Element>(_ iterator: Iterator, payload: Payload? = nil) {
         
         var iterator = iterator
         
@@ -125,11 +125,11 @@ extension Trie {
 }
 
 extension Trie {
-    func findLast<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(sequence: SequenceType) -> Trie<Element, Payload>? {
+    func findLast<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(_ sequence: SequenceType) -> Trie<Element, Payload>? {
         return findLast(sequence.makeIterator())
     }
     
-    func findLast<Iterator: IteratorProtocol where Iterator.Element == Element>(iterator: Iterator) -> Trie<Element, Payload>? {
+    func findLast<Iterator: IteratorProtocol where Iterator.Element == Element>(_ iterator: Iterator) -> Trie<Element, Payload>? {
         
         var iterator = iterator
         
@@ -165,26 +165,26 @@ extension Trie {
 }
 
 extension Trie {
-    func findPayload<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(sequence: SequenceType) -> Payload? {
+    func findPayload<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(_ sequence: SequenceType) -> Payload? {
         return findPayload(sequence.makeIterator())
     }
-    func findPayload<Iterator: IteratorProtocol where Iterator.Element == Element>(iterator: Iterator) -> Payload? {
+    func findPayload<Iterator: IteratorProtocol where Iterator.Element == Element>(_ iterator: Iterator) -> Payload? {
         return findLast(iterator)?.payload
     }
 }
 
 extension Trie {
-    func contains<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(sequence: SequenceType) -> Bool {
+    func contains<SequenceType: Sequence where SequenceType.Iterator.Element == Element>(_ sequence: SequenceType) -> Bool {
         return contains(sequence.makeIterator())
     }
     
-    func contains<Iterator: IteratorProtocol where Iterator.Element == Element>(iterator: Iterator) -> Bool {
+    func contains<Iterator: IteratorProtocol where Iterator.Element == Element>(_ iterator: Iterator) -> Bool {
         return findLast(iterator) != nil
     }
 }
 
 extension Trie where Payload: Equatable {
-    func findByPayload(payload: Payload) -> [Element]? {
+    func findByPayload(_ payload: Payload) -> [Element]? {
         
         if self.payload == payload {
             // not sure what to do if it doesnt have a prefix
@@ -207,7 +207,7 @@ extension Trie where Payload: Equatable {
 }
 
 extension Trie {
-    mutating func sort(isOrderedBefore: (Trie<Element, Payload>, Trie<Element, Payload>) -> Bool) {
+    mutating func sort(_ isOrderedBefore: (Trie<Element, Payload>, Trie<Element, Payload>) -> Bool) {
         self.children = children.map { child in
             var child = child
             child.sort(isOrderedBefore)
