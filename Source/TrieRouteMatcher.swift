@@ -34,7 +34,7 @@ public struct TrieRouteMatcher: RouteMatcher {
 
         for route in routes {
             // break into components
-            let components = route.path.split("/")
+            let components = route.path.split(separator: "/")
 
             // insert components into trie with route being the ending payload
             routesTrie.insert(components, payload: route)
@@ -42,7 +42,7 @@ public struct TrieRouteMatcher: RouteMatcher {
 
         // ensure parameter paths are processed later than static paths
         routesTrie.sort { t1, t2 in
-            func rank(t: Trie<String, Route>) -> Int {
+            func rank(_ t: Trie<String, Route>) -> Int {
                 if t.prefix == "*" {
                     return 3
                 }
@@ -56,7 +56,7 @@ public struct TrieRouteMatcher: RouteMatcher {
         }
     }
 
-    func searchForRoute(head head: Trie<String, Route>, components: IndexingIterator<[String]>, parameters: inout [String:String]) -> Route? {
+    func searchForRoute(head: Trie<String, Route>, components: IndexingIterator<[String]>, parameters: inout [String:String]) -> Route? {
 
         var components = components
 
@@ -109,7 +109,7 @@ public struct TrieRouteMatcher: RouteMatcher {
         return nil
     }
 
-    public func match(request: Request) -> Route? {
+    public func match(_ request: Request) -> Route? {
         guard let path = request.path else {
             return nil
         }
@@ -149,7 +149,7 @@ extension TrieRouteMatcher: CustomStringConvertible {
 }
 
 extension Dictionary {
-    func mapValues<T>(transform: Value -> T) -> [Key: T] {
+    func mapValues<T>(_ transform: Value -> T) -> [Key: T] {
         var dictionary: [Key: T] = [:]
 
         for (key, value) in self {
