@@ -298,15 +298,7 @@ class TrieRouteMatcherTests: XCTestCase {
     }
 
     func measurePerformance(_ block: () -> Void) {
-        #if os(Linux)
-            let start = clock()
-            for _ in 0..<10 {
-                block()
-            }
-            let finish = clock()
-            let time = Double((finish - start)) / Double(CLOCKS_PER_SEC) / 10.0
-            print("Average time: \(time)")
-        #else
+        #if os(OSX)
             measure(block)
         #endif
     }
