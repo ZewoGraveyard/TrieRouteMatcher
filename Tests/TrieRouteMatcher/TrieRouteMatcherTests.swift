@@ -2,8 +2,8 @@
 import XCTest
 
 class TrieRouteMatcherTests: XCTestCase {
-    let ok = Responder { request in
-        return Response(status: .OK)
+    let ok = BasicResponder { request in
+        return Response(status: .ok)
     }
 
     func testTrie() {
@@ -40,13 +40,15 @@ class TrieRouteMatcherTests: XCTestCase {
     }
 
     func testPerformanceOfTrieRouteMatcher() {
-        measureBlock {
-            self.testPerformanceOfMatcher(TrieRouteMatcher.self)
-        }
+        #if os(OSX)
+            measure {
+                self.testPerformanceOfMatcher(TrieRouteMatcher.self)
+            }
+        #endif
     }
 
-    func testMatcherMatchesRoutes(matcher: RouteMatcherType.Type) {
-        let routes: [RouteType] = [
+    func testMatcherMatchesRoutes(_ matcher: RouteMatcher.Type) {
+        let routes: [Route] = [
             TestRoute(path: "/hello/world"),
             TestRoute(path: "/hello/dan"),
             TestRoute(path: "/api/:version"),
@@ -56,8 +58,8 @@ class TrieRouteMatcherTests: XCTestCase {
 
         let matcher = matcher.init(routes: routes)
 
-        func route(path: String, shouldMatch: Bool) -> Bool {
-            let request = try! Request(method: .GET, uri: path)
+        func route(_ path: String, shouldMatch: Bool) -> Bool {
+            let request = try! Request(method: .get, uri: path)
             let matched = matcher.match(request)
             return shouldMatch ?  matched != nil : matched == nil
         }
@@ -75,28 +77,27 @@ class TrieRouteMatcherTests: XCTestCase {
         XCTAssert(route("/servers/json/logs", shouldMatch: true))
     }
 
-    func testMatcherWithTrailingSlashes(matcher: RouteMatcherType.Type) {
-        let routes: [RouteType] = [
+    func testMatcherWithTrailingSlashes(_ matcher: RouteMatcher.Type) {
+        let routes: [Route] = [
             TestRoute(path: "/hello/world")
         ]
 
         let matcher = matcher.init(routes: routes)
 
-        let request1 = try! Request(method: .GET, uri: "/hello/world")
-        let request2 = try! Request(method: .GET, uri: "/hello/world/")
+        let request1 = try! Request(method: .get, uri: "/hello/world")
+        let request2 = try! Request(method: .get, uri: "/hello/world/")
 
         XCTAssert(matcher.match(request1) != nil)
         XCTAssert(matcher.match(request2) != nil)
     }
 
-    func testMatcherParsesPathParameters(matcher: RouteMatcherType.Type) {
-        let action = Action(ok)
+    func testMatcherParsesPathParameters(_ matcher: RouteMatcher.Type) {
 
-        let routes: [RouteType] = [
+        let routes: [Route] = [
             TestRoute(
                 path: "/hello/world",
                 actions: [
-                    .GET: Action { _ in
+                    .get: BasicResponder { _ in
                         Response(body: "hello world - not!")
                     }
                 ]
@@ -104,7 +105,7 @@ class TrieRouteMatcherTests: XCTestCase {
             TestRoute(
                 path: "/hello/:location",
                 actions: [
-                    .GET: Action {
+                    .get: BasicResponder {
                         Response(body: "hello \($0.pathParameters["location"]!)")
                     }
                 ]
@@ -112,7 +113,7 @@ class TrieRouteMatcherTests: XCTestCase {
             TestRoute(
                 path: "/:greeting/:location",
                 actions: [
-                    .GET: Action {
+                    .get: BasicResponder {
                         Response(body: "\($0.pathParameters["greeting"]!) \($0.pathParameters["location"]!)")
                     }
                 ]
@@ -121,26 +122,32 @@ class TrieRouteMatcherTests: XCTestCase {
 
         let matcher = matcher.init(routes: routes)
 
-        func body(request: Request) -> String? {
-            return try! matcher.match(request)?.respond(request).bodyString
+        func body(_ request: Request, _ expectedResponse: String) -> Bool {
+            guard var body = try? matcher.match(request)?.respond(to: request).body else {
+                return false
+            }
+            guard let buffer = try? body?.becomeBuffer() else {
+                return false
+            }
+            return buffer == expectedResponse.data
         }
 
-        let helloWorld = try! Request(method: .GET, uri: "/hello/world")
-        let helloAmerica = try! Request(method: .GET, uri: "/hello/america")
-        let heyAustralia = try! Request(method: .GET, uri: "/hey/australia")
+        let helloWorld = try! Request(method: .get, uri: "/hello/world")
+        let helloAmerica = try! Request(method: .get, uri: "/hello/america")
+        let heyAustralia = try! Request(method: .get, uri: "/hey/australia")
 
-        XCTAssert(body(helloWorld) == "hello world - not!")
-        XCTAssert(body(helloAmerica) == "hello america")
-        XCTAssert(body(heyAustralia) == "hey australia")
+        XCTAssert(body(helloWorld, "hello world - not!"))
+        XCTAssert(body(helloAmerica, "hello america"))
+        XCTAssert(body(heyAustralia, "hey australia"))
     }
 
-    func testMatcherMatchesWildstars(matcher: RouteMatcherType.Type) {
+    func testMatcherMatchesWildstars(_ matcher: RouteMatcher.Type) {
 
-        func testRoute(path path: String, response: String) -> RouteType {
-            return TestRoute(path: path, actions: [.GET: Action { _ in Response(body: response) }])
+        func testRoute(path: String, response: String) -> Route {
+            return TestRoute(path: path, actions: [.get: BasicResponder { _ in Response(body: response) }])
         }
 
-        let routes: [RouteType] = [
+        let routes: [Route] = [
             testRoute(path: "/*", response: "wild"),
             testRoute(path: "/hello/*", response: "hello wild"),
             testRoute(path: "/hello/dan", response: "hello dan"),
@@ -148,11 +155,17 @@ class TrieRouteMatcherTests: XCTestCase {
 
         let matcher = matcher.init(routes: routes)
 
-        func route(path: String, expectedResponse: String) -> Bool {
-            let request = try! Request(method: .GET, uri: path)
+        func route(_ path: String, expectedResponse: String) -> Bool {
+            let request = try! Request(method: .get, uri: path)
             let matched = matcher.match(request)
 
-            return try! matched!.respond(request).bodyString == expectedResponse
+            guard var body = try? matched?.respond(to: request).body else {
+                return false
+            }
+            guard let buffer = try? body?.becomeBuffer() else {
+                return false
+            }
+            return buffer == expectedResponse.data
         }
 
         XCTAssert(route("/a/s/d/f", expectedResponse: "wild"))
@@ -160,101 +173,99 @@ class TrieRouteMatcherTests: XCTestCase {
         XCTAssert(route("/hello/dan", expectedResponse: "hello dan"))
     }
 
-    func testPerformanceOfMatcher(matcher: RouteMatcherType.Type) {
-        let action = Action(ok)
-
+    func testPerformanceOfMatcher(_ matcher: RouteMatcher.Type) {
         let routePairs: [(HTTP.Method, String)] = [
             // Objects
-            (.POST, "/1/classes/:className"),
-            (.GET, "/1/classes/:className/:objectId"),
-            (.PUT, "/1/classes/:className/:objectId"),
-            (.GET, "/1/classes/:className"),
-            (.DELETE, "/1/classes/:className/:objectId"),
+            (.post, "/1/classes/:className"),
+            (.get, "/1/classes/:className/:objectId"),
+            (.put, "/1/classes/:className/:objectId"),
+            (.get, "/1/classes/:className"),
+            (.delete, "/1/classes/:className/:objectId"),
 
             // Users
-            (.POST, "/1/users"),
-            (.GET, "/1/login"),
-            (.GET, "/1/users/:objectId"),
-            (.PUT, "/1/users/:objectId"),
-            (.GET, "/1/users"),
-            (.DELETE, "/1/users/:objectId"),
-            (.POST, "/1/requestPasswordReset"),
+            (.post, "/1/users"),
+            (.get, "/1/login"),
+            (.get, "/1/users/:objectId"),
+            (.put, "/1/users/:objectId"),
+            (.get, "/1/users"),
+            (.delete, "/1/users/:objectId"),
+            (.post, "/1/requestPasswordReset"),
 
             // Roles
-            (.POST, "/1/roles"),
-            (.GET, "/1/roles/:objectId"),
-            (.PUT, "/1/roles/:objectId"),
-            (.GET, "/1/roles"),
-            (.DELETE, "/1/roles/:objectId"),
+            (.post, "/1/roles"),
+            (.get, "/1/roles/:objectId"),
+            (.put, "/1/roles/:objectId"),
+            (.get, "/1/roles"),
+            (.delete, "/1/roles/:objectId"),
 
             // Files
-            (.POST, "/1/files/:fileName"),
+            (.post, "/1/files/:fileName"),
 
             // Analytics
-            (.POST, "/1/events/:eventName"),
+            (.post, "/1/events/:eventName"),
 
             // Push Notifications
-            (.POST, "/1/push"),
+            (.post, "/1/push"),
 
             // Installations
-            (.POST, "/1/installations"),
-            (.GET, "/1/installations/:objectId"),
-            (.PUT, "/1/installations/:objectId"),
-            (.GET, "/1/installations"),
-            (.DELETE, "/1/installations/:objectId"),
+            (.post, "/1/installations"),
+            (.get, "/1/installations/:objectId"),
+            (.put, "/1/installations/:objectId"),
+            (.get, "/1/installations"),
+            (.delete, "/1/installations/:objectId"),
 
             // Cloud Functions
-            (.POST, "/1/functions"),
+            (.post, "/1/functions"),
         ]
 
         let requestPairs: [(HTTP.Method, String)] = [
             // Objects
-            (.POST, "/1/classes/test"),
-            (.GET, "/1/classes/test/test"),
-            (.PUT, "/1/classes/test/test"),
-            (.GET, "/1/classes/test"),
-            (.DELETE, "/1/classes/test/test"),
+            (.post, "/1/classes/test"),
+            (.get, "/1/classes/test/test"),
+            (.put, "/1/classes/test/test"),
+            (.get, "/1/classes/test"),
+            (.delete, "/1/classes/test/test"),
 
             // Users
-            (.POST, "/1/users"),
-            (.GET, "/1/login"),
-            (.GET, "/1/users/test"),
-            (.PUT, "/1/users/test"),
-            (.GET, "/1/users"),
-            (.DELETE, "/1/users/test"),
-            (.POST, "/1/requestPasswordReset"),
+            (.post, "/1/users"),
+            (.get, "/1/login"),
+            (.get, "/1/users/test"),
+            (.put, "/1/users/test"),
+            (.get, "/1/users"),
+            (.delete, "/1/users/test"),
+            (.post, "/1/requestPasswordReset"),
 
             // Roles
-            (.POST, "/1/roles"),
-            (.GET, "/1/roles/test"),
-            (.PUT, "/1/roles/test"),
-            (.GET, "/1/roles"),
-            (.DELETE, "/1/roles/test"),
+            (.post, "/1/roles"),
+            (.get, "/1/roles/test"),
+            (.put, "/1/roles/test"),
+            (.get, "/1/roles"),
+            (.delete, "/1/roles/test"),
 
             // Files
-            (.POST, "/1/files/test"),
+            (.post, "/1/files/test"),
 
             // Analytics
-            (.POST, "/1/events/test"),
+            (.post, "/1/events/test"),
 
             // Push Notifications
-            (.POST, "/1/push"),
+            (.post, "/1/push"),
 
             // Installations
-            (.POST, "/1/installations"),
-            (.GET, "/1/installations/test"),
-            (.PUT, "/1/installations/test"),
-            (.GET, "/1/installations"),
-            (.DELETE, "/1/installations/test"),
+            (.post, "/1/installations"),
+            (.get, "/1/installations/test"),
+            (.put, "/1/installations/test"),
+            (.get, "/1/installations"),
+            (.delete, "/1/installations/test"),
 
             // Cloud Functions
-            (.POST, "/1/functions"),
+            (.post, "/1/functions"),
         ]
 
-        let routes: [RouteType] = routePairs.map {
+        let routes: [Route] = routePairs.map {
             TestRoute(
                 path: $0.1,
-                actions: [$0.0: action]
+                actions: [$0.0: ok]
             )
         }
 
@@ -272,11 +283,11 @@ class TrieRouteMatcherTests: XCTestCase {
     }
 }
 
-struct TestRoute: RouteType {
+struct TestRoute: Route {
     let path: String
-    let actions: [HTTP.Method: Action]
+    let actions: [HTTP.Method: Responder]
 
-    init(path: String, actions: [HTTP.Method: Action] = [:]) {
+    init(path: String, actions: [HTTP.Method: Responder] = [:]) {
         self.path = path
         self.actions = actions
     }
