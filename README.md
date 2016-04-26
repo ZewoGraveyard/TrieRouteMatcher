@@ -5,6 +5,7 @@
 [![Platform][platform-badge]][platform-url]
 [![License][mit-badge]][mit-url]
 [![Slack][slack-badge]][slack-url]
+[![Travis][travis-badge]][travis-url]
 
 ## Installation
 
@@ -44,3 +45,5 @@ License
 [slack-image]: http://s13.postimg.org/ybwy92ktf/Slack.png
 [slack-badge]: https://zewo-slackin.herokuapp.com/badge.svg
 [slack-url]: http://slack.zewo.io
+[travis-badge]: https://travis-ci.org/Zewo/TrieRouteMatcher.svg?branch=master
+[travis-url]: https://travis-ci.org/Zewo/TrieRouteMatcher
