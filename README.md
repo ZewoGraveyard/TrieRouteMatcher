@@ -6,6 +6,7 @@
 [![License][mit-badge]][mit-url]
 [![Slack][slack-badge]][slack-url]
 [![Travis][travis-badge]][travis-url]
+[![Codebeat][codebeat-badge]][codebeat-url]
 
 ## Installation
 
@@ -14,7 +15,7 @@ import PackageDescription
 
 let package = Package(
     dependencies: [
-        .Package(url: "https://github.com/Zewo/TrieRouteMatcher.git", majorVersion: 0, minor: 5)
+        .Package(url: "https://github.com/Zewo/TrieRouteMatcher.git", majorVersion: 0, minor: 5),
     ]
 )
 ```
@@ -47,3 +48,5 @@ License
 [slack-url]: http://slack.zewo.io
 [travis-badge]: https://travis-ci.org/Zewo/TrieRouteMatcher.svg?branch=master
 [travis-url]: https://travis-ci.org/Zewo/TrieRouteMatcher
+[codebeat-badge]: https://codebeat.co/badges/c4961202-a064-4333-92a6-ab5ed1ad39eb
+[codebeat-url]: https://codebeat.co/projects/github-com-zewo-trieroutematcher
