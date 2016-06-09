@@ -294,7 +294,7 @@ struct TestRoute: Route {
 }
 
 extension TrieRouteMatcherTests {
-    static var allTests: [(String, TrieRouteMatcherTests -> () throws -> Void)] {
+    static var allTests: [(String, (TrieRouteMatcherTests) -> () throws -> Void)] {
         return [
            ("testTrieRouteMatcherMatchesRoutes", testTrieRouteMatcherMatchesRoutes),
         ]
