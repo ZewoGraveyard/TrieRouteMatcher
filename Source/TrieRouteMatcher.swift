@@ -68,41 +68,50 @@ public struct TrieRouteMatcher: RouteMatcher {
 
         // store each possible path (ie both a static and a parameter)
         // and then go through them all
-        var paths = [Trie<String, Route>]()
+        var paths = [(node: Trie<String, Route>, param: String?)]()
 
         for child in head.children {
 
             // matched static
             if child.prefix == component {
-                paths.append(child)
+                paths.append((node: child, param: nil))
                 continue
             }
 
             // matched parameter
-            if child.prefix?.characters.first == ":" {
-                paths.append(child)
-                let param = String(child.prefix!.characters.dropFirst())
-                parameters[param] = component
+            if let prefix = child.prefix where prefix.characters.first == ":" {
+                let param = String(prefix.characters.dropFirst())
+                paths.append((node: child, param: param))
                 continue
             }
 
             // matched wildstar
             if child.prefix == "*" {
-                paths.append(child)
+                paths.append((node: child, param: nil))
                 continue
             }
         }
 
         // go through all the paths and recursively try to match them. if
         // any of them match, the route has been matched
-        for path in paths {
+        for (node, param) in paths {
 
-            if let route = path.payload where path.prefix == "*" {
+            if let route = node.payload where node.prefix == "*" {
                 return route
             }
 
-            let matched = searchForRoute(head: path, components: components, parameters: &parameters)
-            if let matched = matched { return matched }
+            let matched = searchForRoute(head: node, components: components, parameters: &parameters)
+
+            // this path matched! we're done
+            if let matched = matched {
+
+                // add the parameter if there was one
+                if let param = param {
+                    parameters[param] = component
+                }
+
+                return matched
+            }
         }
 
         // we went through all the possible paths and still found nothing. 404

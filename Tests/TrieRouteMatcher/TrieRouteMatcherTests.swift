@@ -35,6 +35,10 @@ class TrieRouteMatcherTests: XCTestCase {
         testMatcherParsesPathParameters(TrieRouteMatcher.self)
     }
 
+    func testTrieRouteMatcherReturnsCorrectPathParameters() {
+        testMatcherReturnsCorrectPathParameters(TrieRouteMatcher.self)
+    }
+
     func testTrieRouteMatcherMatchesWildstars() {
         testMatcherMatchesWildstars(TrieRouteMatcher.self)
     }
@@ -122,7 +126,7 @@ class TrieRouteMatcherTests: XCTestCase {
 
         let matcher = matcher.init(routes: routes)
 
-        func body(_ request: Request, _ expectedResponse: String) -> Bool {
+        func body(with request: Request, is expectedResponse: String) -> Bool {
             guard var body = try? matcher.match(request)?.respond(to: request).body else {
                 return false
             }
@@ -136,9 +140,39 @@ class TrieRouteMatcherTests: XCTestCase {
         let helloAmerica = try! Request(method: .get, uri: "/hello/america")
         let heyAustralia = try! Request(method: .get, uri: "/hey/australia")
 
-        XCTAssert(body(helloWorld, "hello world - not!"))
-        XCTAssert(body(helloAmerica, "hello america"))
-        XCTAssert(body(heyAustralia, "hey australia"))
+        XCTAssert(body(with: helloWorld, is: "hello world - not!"))
+        XCTAssert(body(with: helloAmerica, is: "hello america"))
+        XCTAssert(body(with: heyAustralia, is: "hey australia"))
+    }
+
+    func testMatcherReturnsCorrectPathParameters(_ matcher: RouteMatcher.Type) {
+        let routePaths = [
+            "/hello/:city/a",
+            "/hello/:country/b"
+        ]
+
+        let tests: [(path: String, expectation: [String:String])] = [
+            ("/hello/venice/a", ["city":"venice"]),
+            ("/hello/america/b", ["country":"america"])
+        ]
+
+        let routes: [Route] = routePaths.map { TestRoute(path: $0, actions: [
+            .get: BasicResponder{ request in
+                var response = Response()
+                response.storage["testPathParameters"] = request.pathParameters
+                return response
+            }
+        ])}
+
+        let matcher = matcher.init(routes: routes)
+
+        for (path, expectation) in tests {
+            let request = try! Request(method: .get, uri: path)
+            let response = try! matcher.match(request)!.respond(to: request)
+            let pathParameters = response.storage["testPathParameters"] as! [String:String]
+
+            XCTAssertEqual(expectation, pathParameters)
+        }
     }
 
     func testMatcherMatchesWildstars(_ matcher: RouteMatcher.Type) {
